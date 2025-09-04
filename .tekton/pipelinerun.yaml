@@ -1,0 +1,21 @@
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  name: oc-pipelines-oc-run
+spec:
+  serviceAccountName: pipeline
+  pipelineRef:
+    name: oc-pipelines-oc
+  params:
+    - name: repo-url
+      value: https://github.com/HerVil2/ci-cd-final-project.git
+    - name: revision
+      value: main
+    - name: build-image
+      value: image-registry.openshift-image-registry.svc:5000/<tu-namespace>/app:latest
+    - name: app-name
+      value: app
+  workspaces:
+    - name: output
+      persistentVolumeClaim:
+        claimName: oc-lab-pvc

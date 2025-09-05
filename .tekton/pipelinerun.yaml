@@ -12,7 +12,7 @@ spec:
     - name: revision
       value: main
     - name: build-image
-      value: image-registry.openshift-image-registry.svc:5000/<tu-namespace>/app:latest
+      value: image-registry.openshift-image-registry.svc:5000/sn-labs-hernanmasvi/app:latest
     - name: app-name
       value: app
   workspaces:

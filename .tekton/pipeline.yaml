@@ -13,41 +13,27 @@ spec:
       default: main
     - name: build-image
       type: string
-      description: Full image URL in internal registry, e.g. image-registry.openshift-image-registry.svc:5000/<ns>/app:latest
+      description: Full internal image URL (e.g. image-registry.openshift-image-registry.svc:5000/<ns>/app:latest)
     - name: app-name
       type: string
       default: app
-
   tasks:
-    # 1) cleanup
     - name: cleanup
-      taskRef:
-        name: cleanup
-      workspaces:
-        - name: source
-          workspace: output
+      taskRef: { name: cleanup }
+      workspaces: [{ name: source, workspace: output }]
 
-    # 2) git clone
     - name: git-clone
       runAfter: [cleanup]
-      taskRef:
-        kind: ClusterTask
-        name: git-clone
+      taskRef: { kind: ClusterTask, name: git-clone }
       params:
-        - name: url
-          value: $(params.repo-url)
-        - name: revision
-          value: $(params.revision)
-      workspaces:
-        - name: output
-          workspace: output
+        - { name: url, value: $(params.repo-url) }
+        - { name: revision, value: $(params.revision) }
+      workspaces: [{ name: output, workspace: output }]
 
-    # 3) flake8 linting (task embebida)
     - name: flake8-linting
       runAfter: [git-clone]
       taskSpec:
-        workspaces:
-          - name: output
+        workspaces: [ { name: output } ]
         steps:
           - name: lint
             image: python:3.9-slim
@@ -59,53 +45,32 @@ spec:
               pip install -r requirements.txt
               flake8 service --count --select=E9,F63,F7,F82 --show-source --statistics
               flake8 service --count --max-complexity=10 --max-line-length=127 --statistics
-      workspaces:
-        - name: output
-          workspace: output
+      workspaces: [{ name: output, workspace: output }]
 
-    # 4) nose tests
     - name: nose-tests
       runAfter: [flake8-linting]
-      taskRef:
-        name: nose
-      params:
-        - name: args
-          value: "-v"
-      workspaces:
-        - name: source
-          workspace: output
+      taskRef: { name: nose }
+      params: [ { name: args, value: "-v" } ]
+      workspaces: [{ name: source, workspace: output }]
 
-    # 5) buildah (image build)
     - name: build-image
       runAfter: [nose-tests]
-      taskRef:
-        kind: ClusterTask
-        name: buildah
+      taskRef: { kind: ClusterTask, name: buildah }
       params:
-        - name: IMAGE
-          value: $(params.build-image)
-        - name: TLSVERIFY
-          value: "false"
-        - name: DOCKERFILE
-          value: ./Dockerfile
-        - name: CONTEXT
-          value: .
-      workspaces:
-        - name: source
-          workspace: output
+        - { name: IMAGE, value: $(params.build-image) }
+        - { name: TLSVERIFY, value: "false" }
+        - { name: DOCKERFILE, value: ./Dockerfile }
+        - { name: CONTEXT, value: . }
+      workspaces: [{ name: source, workspace: output }]
 
-    # 6) deploy con openshift-client (oc)
     - name: deploy
       runAfter: [build-image]
-      taskRef:
-        kind: ClusterTask
-        name: openshift-client
+      taskRef: { kind: ClusterTask, name: openshift-client }
       params:
         - name: SCRIPT
           value: |
             set -e
             echo "Deploying $(params.app-name) with image $(params.build-image)"
             oc create deployment $(params.app-name) --image=$(params.build-image) --dry-run=client -o yaml | oc apply -f -
-            # Opcional: espera al rollout y muestra pods
+            oc expose deployment $(params.app-name) --port=8080 || true
             oc rollout status deploy/$(params.app-name) -w
-            oc get pods -l app=$(params.app-name) -o wide
